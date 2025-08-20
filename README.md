@@ -22,7 +22,11 @@ A production-ready Node.js application for scheduling WhatsApp messages, polls, 
 ## 🛠 Quick Start
 
 1. **Install dependencies**: `npm install`
-2. **Set your token**: Edit `start-ui.sh` with your Whapi.Cloud token
+2. **Configure environment**: 
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your WHAPI_TOKEN from https://whapi.cloud
+   ```
 3. **Start web interface**: `./start-ui.sh`
 4. **Open browser**: http://localhost:3001
 5. **Start scheduling**: Use the web interface to manage messages
@@ -107,13 +111,20 @@ example-uuid-1,Marketing Team,Marketing campaigns,"919876543210,919876543211",20
 
 ## 🔒 Configuration
 
-Set environment variables:
+The system uses environment variables from a `.env` file:
+
 ```bash
-export WHAPI_TOKEN="your_whapi_cloud_token"
-export CSV_PATH="/absolute/path/to/schedule.csv"
-export CONCURRENCY=5
-export SERVER_PORT=3001
+# Copy the example file
+cp .env.example .env
+
+# Edit .env with your values:
+WHAPI_TOKEN=your_whapi_cloud_token_here
+CSV_PATH=./schedule.csv
+SERVER_PORT=3001
+CONCURRENCY=15
 ```
+
+**🔐 Security**: Never commit your `.env` file to git - it's already in `.gitignore`
 
 ## 🖥️ Terminal Commands
 

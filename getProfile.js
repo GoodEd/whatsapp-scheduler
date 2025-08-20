@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const WHAPI_TOKEN = process.env.WHAPI_TOKEN || '9LId9ZUKfkduvHSCi7BObvig5VjGfZi9';
+const WHAPI_TOKEN = process.env.WHAPI_TOKEN;
 const BASE_URL = 'https://gate.whapi.cloud';
 
 async function getProfile() {

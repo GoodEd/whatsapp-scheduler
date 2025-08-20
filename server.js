@@ -11,9 +11,16 @@ import PQueue from 'p-queue';
 
 const app = express();
 const PORT = process.env.SERVER_PORT || 3001;
-const WHAPI_TOKEN = process.env.WHAPI_TOKEN || '9LId9ZUKfkduvHSCi7BObvig5VjGfZi9';
+const WHAPI_TOKEN = process.env.WHAPI_TOKEN;
 const CSV_PATH = process.env.CSV_PATH || './schedule.csv';
 const BASE_URL = 'https://gate.whapi.cloud';
+
+// Check for required environment variables
+if (!WHAPI_TOKEN) {
+  console.error('❌ ERROR: WHAPI_TOKEN environment variable is required');
+  console.error('📝 Please copy .env.example to .env and add your token');
+  process.exit(1);
+}
 
 app.use(cors());
 app.use(express.json());
