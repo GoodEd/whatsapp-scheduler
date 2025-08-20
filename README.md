@@ -83,15 +83,27 @@ whatsapp-scheduler/
 ./start.sh
 ```
 
-## 📊 CSV Format
+## 📊 CSV Files
 
-Create `schedule.csv` with this structure:
+The system uses two main CSV files:
+
+### Schedule CSV (`schedule.csv`)
+Main scheduling data storage:
 ```csv
-type,group_id,body,poll_options,image_url,send_at,sent
-text,919876543210,Hello World!,,,1692825600,false
-poll,919876543210,Favorite color?,Red;Blue;Green,,1692825660,false
-dp,120363023456789012,,,https://example.com/image.jpg,1692825720,false
+type,group_id,body,poll_options,image_url,send_at,sent,status,message_id,error_details,sent_at
+text,919876543210,Hello World!,,,1692825600,false,pending,,,
+poll,919876543210,Favorite color?,Red;Blue;Green,,1692825660,false,pending,,,
+dp,120363023456789012,,,https://example.com/image.jpg,1692825720,false,pending,,,
 ```
+
+### Subgroups CSV (`subgroups.csv`)
+Subgroup management for bulk messaging:
+```csv
+subgroup_id,subgroup_name,description,group_ids,created_at,updated_at
+example-uuid-1,Marketing Team,Marketing campaigns,"919876543210,919876543211",2024-01-01T00:00:00.000Z,2024-01-01T00:00:00.000Z
+```
+
+**📝 Note**: Template files (`.template`) are included with example data for reference.
 
 ## 🔒 Configuration
 
