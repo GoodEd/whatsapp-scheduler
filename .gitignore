@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Logs
+*.log
+server.log
+scheduler.log
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.staging
+
+# CSV data files (contains sensitive message data)
+schedule.csv
+schedule.csv.backup
+subgroups.csv
+
+# Runtime files
+*.pid
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/

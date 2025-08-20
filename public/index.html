@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Scheduler - Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fab fa-whatsapp"></i> WhatsApp Scheduler</h1>
+                <div class="header-right">
+                    <div class="current-time" id="currentTime">
+                        <i class="fas fa-clock"></i>
+                        <span id="timeDisplay">Loading...</span>
+                    </div>
+                    <div class="channel-info" id="channelInfo">
+                        <i class="fas fa-circle status-indicator"></i>
+                        <span>Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Navigation Tabs -->
+            <nav class="nav-tabs">
+                <button class="tab-btn active" data-tab="scheduler">
+                    <i class="fas fa-calendar-plus"></i> Schedule Messages
+                </button>
+                <button class="tab-btn" data-tab="groups">
+                    <i class="fas fa-users"></i> Groups
+                </button>
+                <button class="tab-btn" data-tab="contacts">
+                    <i class="fas fa-address-book"></i> Contacts
+                </button>
+                <button class="tab-btn" data-tab="schedule-list">
+                    <i class="fas fa-list"></i> Scheduled Items
+                </button>
+                <button class="tab-btn" data-tab="subgroups">
+                    <i class="fas fa-layer-group"></i> Sub-Groups
+                </button>
+                <button class="tab-btn" data-tab="test">
+                    <i class="fas fa-paper-plane"></i> Test Message
+                </button>
+            </nav>
+
+            <!-- Scheduler Tab -->
+            <div class="tab-content active" id="scheduler">
+                <div class="card">
+                    <h2><i class="fas fa-calendar-plus"></i> Schedule New Message</h2>
+                    <form id="scheduleForm" class="schedule-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="messageType">Message Type</label>
+                                <select id="messageType" name="type" required>
+                                    <option value="">Select Type</option>
+                                    <option value="text">Text Message</option>
+                                    <option value="poll">Poll</option>
+                                    <option value="dp">Group Display Picture</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="targetType">Send To</label>
+                                <select id="targetType" name="targetType" required>
+                                    <option value="">Select Target</option>
+                                    <option value="group">Group</option>
+                                    <option value="contact">Contact</option>
+                                    <option value="manual">Manual ID Entry</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group target-selection" id="schedulerGroupSelection" style="display: none;">
+                            <label for="groupSelect">Select Group</label>
+                            <select id="groupSelect" name="group_id">
+                                <option value="">Loading groups...</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group target-selection" id="contactSelection" style="display: none;">
+                            <label for="contactSelect">Select Contact</label>
+                            <select id="contactSelect" name="group_id">
+                                <option value="">Loading contacts...</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group target-selection" id="manualIdInput" style="display: none;">
+                            <label for="manualId">Phone Number (without @c.us or @g.us)</label>
+                            <input type="text" id="manualId" name="group_id" placeholder="e.g., 919876543210">
+                        </div>
+
+                        <div class="form-group message-fields" id="textFields" style="display: none;">
+                            <label for="messageBody">Message Text</label>
+                            <textarea id="messageBody" name="body" rows="4" placeholder="Enter your message here..."></textarea>
+                        </div>
+
+                        <div class="message-fields" id="pollFields" style="display: none;">
+                            <div class="form-group">
+                                <label for="pollQuestion">Poll Question</label>
+                                <input type="text" id="pollQuestion" name="body" placeholder="What's your favorite color?">
+                            </div>
+                            <div class="form-group">
+                                <label for="pollOptions">Poll Options (semicolon separated)</label>
+                                <input type="text" id="pollOptions" name="poll_options" placeholder="Red;Blue;Green;Yellow">
+                                <small>Separate options with semicolons (;)</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group message-fields" id="dpFields" style="display: none;">
+                            <label for="imageUrl">Image URL</label>
+                            <input type="url" id="imageUrl" name="image_url" placeholder="https://example.com/image.jpg">
+                            <small>Must be a publicly accessible HTTPS URL</small>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="scheduleDate">Schedule Date</label>
+                                <input type="date" id="scheduleDate" name="date" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="scheduleTime">Schedule Time</label>
+                                <input type="time" id="scheduleTime" name="time" required>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-calendar-plus"></i> Schedule Message
+                            </button>
+                            <button type="button" class="btn btn-success" id="sendNowBtn">
+                                <i class="fas fa-paper-plane"></i> Send Now
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Groups Tab -->
+            <div class="tab-content" id="groups">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-users"></i> WhatsApp Groups</h2>
+                        <button class="btn btn-secondary" onclick="loadGroups()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="groups-grid" id="groupsGrid">
+                        <div class="loading">Loading groups...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contacts Tab -->
+            <div class="tab-content" id="contacts">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-address-book"></i> WhatsApp Contacts</h2>
+                        <button class="btn btn-secondary" onclick="loadContacts()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="contacts-list" id="contactsList">
+                        <div class="loading">Loading contacts...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schedule List Tab -->
+            <div class="tab-content" id="schedule-list">
+                <!-- Statistics Dashboard -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-chart-bar"></i> Message Statistics</h2>
+                        <button class="btn btn-secondary" onclick="loadStats()">
+                            <i class="fas fa-sync-alt"></i> Refresh Stats
+                        </button>
+                    </div>
+                    <div class="stats-grid" id="statsGrid">
+                        <div class="loading">Loading statistics...</div>
+                    </div>
+                </div>
+
+                <!-- Scheduled Messages List -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-list"></i> Scheduled Messages</h2>
+                        <button class="btn btn-secondary" onclick="loadSchedule()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="schedule-list" id="scheduleItems">
+                        <div class="loading">Loading scheduled items...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sub-Groups Tab -->
+            <div class="tab-content" id="subgroups">
+                <!-- Create Subgroup Form -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-plus-circle"></i> Create Sub-Group</h2>
+                    </div>
+                    <form id="subgroupForm" class="subgroup-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="subgroupName">Sub-Group Name</label>
+                                <input type="text" id="subgroupName" name="name" placeholder="Enter sub-group name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="subgroupDescription">Description</label>
+                                <input type="text" id="subgroupDescription" name="description" placeholder="Optional description">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="subgroupGroups">Select Groups</label>
+                            <div class="group-selection" id="subgroupGroupSelection">
+                                <div class="loading">Loading groups...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Create Sub-Group
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Existing Subgroups -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-layer-group"></i> Existing Sub-Groups</h2>
+                        <button class="btn btn-secondary" onclick="loadSubgroups()">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="subgroups-list" id="subgroupsList">
+                        <div class="loading">Loading sub-groups...</div>
+                    </div>
+                </div>
+
+                <!-- Subgroup Messaging -->
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-broadcast-tower"></i> Send to Sub-Group</h2>
+                    </div>
+                    <form id="subgroupMessageForm" class="subgroup-message-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="subgroupSelect">Select Sub-Group</label>
+                                <select id="subgroupSelect" name="subgroup_id" required>
+                                    <option value="">Select a sub-group</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="subgroupMessageType">Message Type</label>
+                                <select id="subgroupMessageType" name="type" required>
+                                    <option value="text">Text Message</option>
+                                    <option value="poll">Poll</option>
+                                    <option value="dp">Group Display Picture</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="subgroupTextFields">
+                            <div class="form-group">
+                                <label for="subgroupMessageBody">Message</label>
+                                <textarea id="subgroupMessageBody" name="body" rows="4" placeholder="Enter your message"></textarea>
+                            </div>
+                        </div>
+                        
+                        <div id="subgroupPollFields" style="display: none;">
+                            <div class="form-group">
+                                <label for="subgroupPollQuestion">Poll Question</label>
+                                <input type="text" id="subgroupPollQuestion" name="poll_question" placeholder="What's your favorite color?">
+                            </div>
+                            <div class="form-group">
+                                <label for="subgroupPollOptions">Poll Options (separated by semicolons)</label>
+                                <input type="text" id="subgroupPollOptions" name="poll_options" placeholder="Red;Blue;Green;Yellow">
+                            </div>
+                        </div>
+                        
+                        <div id="subgroupImageFields" style="display: none;">
+                            <div class="form-group">
+                                <label for="subgroupImageUrl">Image URL</label>
+                                <input type="url" id="subgroupImageUrl" name="image_url" placeholder="https://example.com/image.jpg">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="subgroupSendAt">Send Date & Time</label>
+                                <input type="datetime-local" id="subgroupSendAt" name="send_at" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-clock"></i> Schedule for Sub-Group
+                            </button>
+                            <button type="button" class="btn btn-success" onclick="sendSubgroupImmediately()">
+                                <i class="fas fa-paper-plane"></i> Send Immediately
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Test Message Tab -->
+            <div class="tab-content" id="test">
+                <div class="card">
+                    <h2><i class="fas fa-paper-plane"></i> Send Test Message</h2>
+                    <form id="testForm" class="test-form">
+                        <div class="form-group">
+                            <label for="testTo">Send To (Phone Number)</label>
+                            <input type="text" id="testTo" name="to" placeholder="919876543210" required>
+                            <small>Enter phone number without country code prefix</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="testMessage">Test Message</label>
+                            <textarea id="testMessage" name="message" rows="3" placeholder="Hello! This is a test message." required></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Test Message
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
