@@ -13,10 +13,8 @@ scheduler.log
 .env.production
 .env.staging
 
-# CSV data files (contains sensitive message data)
-schedule.csv
+# CSV backup files only (keep templates)
 schedule.csv.backup
-subgroups.csv
 
 # Runtime files
 *.pid

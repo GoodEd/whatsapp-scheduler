@@ -1,0 +1,4 @@
+type,group_id,body,poll_options,image_url,send_at,sent,status,message_id,error_details,sent_at
+text,919876543210,Hello World! This is a test message,,,1692825600,false,pending,,,
+poll,919876543210,What's your favorite color?,Red;Blue;Green;Yellow,,1692825660,false,pending,,,
+dp,120363023456789012,,,https://example.com/sample-image.jpg,1692825720,false,pending,,,
