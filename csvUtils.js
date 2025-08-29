@@ -31,7 +31,7 @@ export async function saveSchedule(csvPath, records) {
       console.warn('Failed to create backup:', err.message);
     }
     
-    const header = 'type,group_id,body,poll_options,image_url,send_at,sent,status,message_id,error_details,sent_at\n';
+    const header = 'type,group_id,body,poll_options,image_url,send_at,sent,status,message_id,error_details,sent_at,subgroup_id\n';
     const csvContent = header + records.map(record => {
       const escapeCsv = (value) => {
         if (value === undefined || value === null) return '';
@@ -53,7 +53,8 @@ export async function saveSchedule(csvPath, records) {
         escapeCsv(record.status),
         escapeCsv(record.message_id),
         escapeCsv(record.error_details),
-        escapeCsv(record.sent_at)
+        escapeCsv(record.sent_at),
+        escapeCsv(record.subgroup_id || '')
       ].join(',');
     }).join('\n');
     

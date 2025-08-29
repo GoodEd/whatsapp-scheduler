@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  whatsapp-scheduler:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - WHAPI_TOKEN=${WHAPI_TOKEN}
+      - CSV_PATH=./schedule.csv
+      - SUBGROUPS_PATH=./subgroups.csv
+      - SERVER_PORT=3001
+      - CONCURRENCY=15
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  whatsapp-scheduler-worker:
+    build: .
+    environment:
+      - WHAPI_TOKEN=${WHAPI_TOKEN}
+      - CSV_PATH=./schedule.csv
+      - CONCURRENCY=15
+      - NODE_ENV=production
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    command: ["node", "index.js"]
+    depends_on:
+      - whatsapp-scheduler
+
+volumes:
+  data:
+  logs:

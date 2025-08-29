@@ -660,11 +660,11 @@ app.post('/api/process-now', async (req, res) => {
   }
 });
 
-// Send message to subgroup with optional immediate sending
+// Send message to subgroup with rate limiting and optional immediate sending
 app.post('/api/subgroups/:id/send', async (req, res) => {
   try {
     const { id } = req.params;
-    const { type, body, poll_options, image_url, send_at, send_immediately } = req.body;
+    const { type, body, poll_options, image_url, send_at, send_immediately, rate_limit_delay } = req.body;
     
     if (!type || !send_at) {
       return res.status(400).json({ 
@@ -676,9 +676,21 @@ app.post('/api/subgroups/:id/send', async (req, res) => {
     const records = await loadSchedule(CSV_PATH);
     const newRecords = [];
     
-    // Create scheduled message for each group in the subgroup
-    for (const groupId of groupIds) {
-      const effectiveSendAt = send_immediately ? Math.floor(Date.now() / 1000) : parseInt(send_at);
+    // Rate limiting: delay between messages (default 2 seconds)
+    const delayBetweenMessages = parseInt(rate_limit_delay) || 2000; // milliseconds
+    
+    // Create scheduled message for each group in the subgroup with rate limiting
+    for (let i = 0; i < groupIds.length; i++) {
+      const groupId = groupIds[i];
+      let effectiveSendAt;
+      
+      if (send_immediately) {
+        // For immediate sending, add progressive delay to avoid overwhelming API
+        effectiveSendAt = Math.floor(Date.now() / 1000) + Math.floor((i * delayBetweenMessages) / 1000);
+      } else {
+        // For scheduled sending, add progressive delay from the base time
+        effectiveSendAt = parseInt(send_at) + Math.floor((i * delayBetweenMessages) / 1000);
+      }
       
       const newRecord = {
         type,
@@ -691,7 +703,8 @@ app.post('/api/subgroups/:id/send', async (req, res) => {
         status: 'pending',
         message_id: '',
         error_details: '',
-        sent_at: ''
+        sent_at: '',
+        subgroup_id: id // Track which subgroup this message belongs to
       };
       
       records.push(newRecord);
@@ -711,8 +724,9 @@ app.post('/api/subgroups/:id/send', async (req, res) => {
     
     res.json({ 
       success: true, 
-      message: `Message scheduled for ${groupIds.length} groups in subgroup`,
+      message: `Message scheduled for ${groupIds.length} groups in subgroup with ${delayBetweenMessages}ms delay between messages`,
       scheduled_count: groupIds.length,
+      rate_limit_delay: delayBetweenMessages,
       records: newRecords
     });
   } catch (error) {
@@ -720,6 +734,184 @@ app.post('/api/subgroups/:id/send', async (req, res) => {
     const status = error.message === 'Subgroup not found' ? 404 : 500;
     res.status(status).json({ 
       error: 'Failed to schedule subgroup message',
+      details: error.message 
+    });
+  }
+});
+
+// Get failed messages
+app.get('/api/failed-messages', async (req, res) => {
+  try {
+    const records = await loadSchedule(CSV_PATH);
+    
+    const failedMessages = records.filter(record => 
+      record.sent === 'false' && record.status === 'failed'
+    ).map(record => ({
+      ...record,
+      scheduled_time: new Date(parseInt(record.send_at) * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST'
+    }));
+    
+    res.json({ 
+      failed_messages: failedMessages,
+      count: failedMessages.length
+    });
+  } catch (error) {
+    console.error('Error loading failed messages:', error);
+    res.status(500).json({ 
+      error: 'Failed to load failed messages',
+      details: error.message 
+    });
+  }
+});
+
+// Resend failed messages with rate limiting
+app.post('/api/resend-failed', async (req, res) => {
+  try {
+    const { message_indices, rate_limit_delay } = req.body;
+    
+    if (!Array.isArray(message_indices) || message_indices.length === 0) {
+      return res.status(400).json({ 
+        error: 'Missing or invalid message_indices array' 
+      });
+    }
+    
+    const records = await loadSchedule(CSV_PATH);
+    const failedMessages = records.filter(record => 
+      record.sent === 'false' && record.status === 'failed'
+    );
+    
+    if (failedMessages.length === 0) {
+      return res.status(404).json({ 
+        error: 'No failed messages found' 
+      });
+    }
+    
+    // Rate limiting: delay between resend messages (default 3 seconds for resends)
+    const delayBetweenMessages = parseInt(rate_limit_delay) || 3000; // milliseconds
+    const currentTime = Math.floor(Date.now() / 1000);
+    let resendCount = 0;
+    
+    // Process each specified message index
+    for (let i = 0; i < message_indices.length; i++) {
+      const messageIndex = message_indices[i];
+      
+      if (messageIndex >= 0 && messageIndex < failedMessages.length) {
+        const failedMessage = failedMessages[messageIndex];
+        
+        // Find the original record in the main records array
+        const originalIndex = records.findIndex(record => 
+          record.group_id === failedMessage.group_id &&
+          record.send_at === failedMessage.send_at &&
+          record.type === failedMessage.type &&
+          record.sent === 'false' &&
+          record.status === 'failed'
+        );
+        
+        if (originalIndex !== -1) {
+          // Update the record for resending with progressive delay
+          records[originalIndex].send_at = currentTime + Math.floor((i * delayBetweenMessages) / 1000);
+          records[originalIndex].sent = 'false';
+          records[originalIndex].status = 'pending';
+          records[originalIndex].error_details = '';
+          records[originalIndex].sent_at = '';
+          resendCount++;
+        }
+      }
+    }
+    
+    if (resendCount > 0) {
+      await saveSchedule(CSV_PATH, records);
+      
+      // Trigger immediate processing
+      try {
+        setImmediate(() => processMessagesNow());
+      } catch (error) {
+        console.error('Error triggering immediate processing for resend:', error);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `${resendCount} failed messages rescheduled for resending with ${delayBetweenMessages}ms delay`,
+      resend_count: resendCount,
+      rate_limit_delay: delayBetweenMessages
+    });
+    
+  } catch (error) {
+    console.error('Error resending failed messages:', error);
+    res.status(500).json({ 
+      error: 'Failed to resend messages',
+      details: error.message 
+    });
+  }
+});
+
+// Resend all failed messages for a specific subgroup
+app.post('/api/subgroups/:id/resend-failed', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rate_limit_delay } = req.body;
+    
+    const records = await loadSchedule(CSV_PATH);
+    
+    // Find all failed messages for this subgroup
+    const failedMessages = records.filter(record => 
+      record.subgroup_id === id &&
+      record.sent === 'false' && 
+      record.status === 'failed'
+    );
+    
+    if (failedMessages.length === 0) {
+      return res.status(404).json({ 
+        error: 'No failed messages found for this subgroup' 
+      });
+    }
+    
+    // Rate limiting: delay between resend messages (default 3 seconds for resends)
+    const delayBetweenMessages = parseInt(rate_limit_delay) || 3000; // milliseconds
+    const currentTime = Math.floor(Date.now() / 1000);
+    let resendCount = 0;
+    
+    // Update each failed message for resending
+    for (let i = 0; i < failedMessages.length; i++) {
+      const failedMessage = failedMessages[i];
+      
+      // Find the original record in the main records array
+      const originalIndex = records.findIndex(record => 
+        record === failedMessage
+      );
+      
+      if (originalIndex !== -1) {
+        // Update the record for resending with progressive delay
+        records[originalIndex].send_at = currentTime + Math.floor((i * delayBetweenMessages) / 1000);
+        records[originalIndex].sent = 'false';
+        records[originalIndex].status = 'pending';
+        records[originalIndex].error_details = '';
+        records[originalIndex].sent_at = '';
+        resendCount++;
+      }
+    }
+    
+    await saveSchedule(CSV_PATH, records);
+    
+    // Trigger immediate processing
+    try {
+      setImmediate(() => processMessagesNow());
+    } catch (error) {
+      console.error('Error triggering immediate processing for subgroup resend:', error);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `${resendCount} failed messages from subgroup rescheduled for resending with ${delayBetweenMessages}ms delay`,
+      resend_count: resendCount,
+      rate_limit_delay: delayBetweenMessages
+    });
+    
+  } catch (error) {
+    console.error('Error resending failed subgroup messages:', error);
+    res.status(500).json({ 
+      error: 'Failed to resend subgroup messages',
       details: error.message 
     });
   }

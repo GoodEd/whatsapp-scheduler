@@ -33,6 +33,11 @@ function initializeTabs() {
             // Add active class to clicked tab and corresponding content
             button.classList.add('active');
             document.getElementById(tabId).classList.add('active');
+            
+            // Load data for specific tabs when activated
+            if (tabId === 'failed-messages') {
+                loadFailedMessages();
+            }
         });
     });
 }
@@ -1121,7 +1126,8 @@ async function handleSubgroupMessageSubmit(e) {
     
     const messageData = {
         type: messageType,
-        send_at: sendAtEpoch
+        send_at: sendAtEpoch,
+        rate_limit_delay: parseInt(formData.get('rate_limit_delay')) || 2000
     };
     
     // Add type-specific fields
@@ -1189,7 +1195,8 @@ async function sendSubgroupImmediately() {
     const messageData = {
         type: messageType,
         send_at: Math.floor(Date.now() / 1000), // Current timestamp
-        send_immediately: true
+        send_immediately: true,
+        rate_limit_delay: parseInt(document.getElementById('subgroupRateLimit').value) || 2000
     };
     
     // Add type-specific fields
@@ -1273,4 +1280,293 @@ function startClock() {
     
     // Update every second
     setInterval(updateClock, 1000);
+}
+
+// Failed Messages Management
+async function loadFailedMessages() {
+    try {
+        showLoading('Loading failed messages...');
+        const response = await fetch('/api/failed-messages');
+        const data = await response.json();
+        
+        if (response.ok) {
+            renderFailedMessages(data.failed_messages || []);
+            showToast(`Found ${data.count || 0} failed messages`, 'info');
+        } else {
+            throw new Error(data.error || 'Failed to load failed messages');
+        }
+    } catch (error) {
+        console.error('Error loading failed messages:', error);
+        document.getElementById('failedMessagesList').innerHTML = `
+            <div class="error-message">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>Failed to load failed messages: ${error.message}</p>
+                <button class="btn btn-secondary" onclick="loadFailedMessages()">Retry</button>
+            </div>
+        `;
+        showToast('Failed to load failed messages', 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+function renderFailedMessages(failedMessages) {
+    const container = document.getElementById('failedMessagesList');
+    
+    if (failedMessages.length === 0) {
+        container.innerHTML = `
+            <div class="no-data">
+                <i class="fas fa-check-circle"></i>
+                <p>No failed messages found!</p>
+                <small>All your messages have been sent successfully.</small>
+            </div>
+        `;
+        document.getElementById('resendAllBtn').disabled = true;
+        return;
+    }
+    
+    document.getElementById('resendAllBtn').disabled = false;
+    
+    container.innerHTML = `
+        <div class="failed-messages-header">
+            <div class="select-all-container">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="selectAllFailed" onchange="toggleAllFailedMessages(this.checked)">
+                    <span class="checkmark"></span>
+                    Select All (${failedMessages.length} messages)
+                </label>
+            </div>
+            <button class="btn btn-warning btn-sm" onclick="resendSelectedFailedMessages()">
+                <i class="fas fa-redo-alt"></i> Resend Selected
+            </button>
+        </div>
+        <div class="failed-messages-grid">
+            ${failedMessages.map((msg, index) => `
+                <div class="failed-message-item" data-index="${index}">
+                    <div class="message-header">
+                        <label class="checkbox-container">
+                            <input type="checkbox" class="failed-message-checkbox" data-index="${index}">
+                            <span class="checkmark"></span>
+                        </label>
+                        <div class="message-type">
+                            <i class="fas fa-${getMessageTypeIcon(msg.type)}"></i>
+                            <span>${msg.type.toUpperCase()}</span>
+                        </div>
+                        <div class="message-time">
+                            <i class="fas fa-clock"></i>
+                            ${msg.scheduled_time}
+                        </div>
+                    </div>
+                    
+                    <div class="message-details">
+                        <div class="message-target">
+                            <strong>Group ID:</strong> ${msg.group_id}
+                        </div>
+                        <div class="message-content">
+                            <strong>Content:</strong> 
+                            ${msg.type === 'poll' ? `${msg.body} (${msg.poll_options})` : 
+                              msg.type === 'text' ? msg.body : 
+                              msg.type === 'dp' ? `Image: ${msg.image_url}` : 'N/A'}
+                        </div>
+                        ${msg.subgroup_id ? `
+                            <div class="message-subgroup">
+                                <strong>Sub-Group:</strong> ${msg.subgroup_id}
+                            </div>
+                        ` : ''}
+                        <div class="message-error">
+                            <strong>Error:</strong> ${msg.error_details || 'No error details available'}
+                        </div>
+                        <div class="message-failed-time">
+                            <strong>Failed At:</strong> ${msg.sent_at}
+                        </div>
+                    </div>
+                    
+                    <div class="message-actions">
+                        <button class="btn btn-success btn-sm" onclick="resendSingleFailedMessage(${index})">
+                            <i class="fas fa-redo-alt"></i> Resend This Message
+                        </button>
+                        ${msg.subgroup_id ? `
+                            <button class="btn btn-warning btn-sm" onclick="resendSubgroupFailedMessages('${msg.subgroup_id}')">
+                                <i class="fas fa-layer-group"></i> Resend Sub-Group
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function toggleAllFailedMessages(checked) {
+    const checkboxes = document.querySelectorAll('.failed-message-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = checked;
+    });
+}
+
+function getMessageTypeIcon(type) {
+    switch (type) {
+        case 'text': return 'comment';
+        case 'poll': return 'poll';
+        case 'dp': return 'image';
+        default: return 'envelope';
+    }
+}
+
+async function resendSingleFailedMessage(index) {
+    try {
+        showLoading('Resending message...');
+        const delay = document.getElementById('resendDelay').value || 3000;
+        
+        const response = await fetch('/api/resend-failed', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message_indices: [index],
+                rate_limit_delay: parseInt(delay)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(`Message queued for resending with ${delay}ms delay`, 'success');
+            setTimeout(() => loadFailedMessages(), 2000); // Refresh after 2 seconds
+        } else {
+            throw new Error(data.error || 'Failed to resend message');
+        }
+    } catch (error) {
+        console.error('Error resending message:', error);
+        showToast('Failed to resend message: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function resendSelectedFailedMessages() {
+    try {
+        const selectedCheckboxes = document.querySelectorAll('.failed-message-checkbox:checked');
+        
+        if (selectedCheckboxes.length === 0) {
+            showToast('Please select at least one message to resend', 'warning');
+            return;
+        }
+        
+        showLoading(`Resending ${selectedCheckboxes.length} messages...`);
+        const delay = document.getElementById('resendDelay').value || 3000;
+        const indices = Array.from(selectedCheckboxes).map(cb => parseInt(cb.dataset.index));
+        
+        const response = await fetch('/api/resend-failed', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message_indices: indices,
+                rate_limit_delay: parseInt(delay)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(`${data.resend_count} messages queued for resending with ${delay}ms delay`, 'success');
+            setTimeout(() => loadFailedMessages(), 2000); // Refresh after 2 seconds
+        } else {
+            throw new Error(data.error || 'Failed to resend messages');
+        }
+    } catch (error) {
+        console.error('Error resending selected messages:', error);
+        showToast('Failed to resend messages: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function resendAllFailedMessages() {
+    try {
+        if (!confirm('Are you sure you want to resend ALL failed messages? This will queue them for immediate processing.')) {
+            return;
+        }
+        
+        showLoading('Resending all failed messages...');
+        const delay = document.getElementById('resendDelay').value || 3000;
+        
+        // First get all failed messages to get their indices
+        const response = await fetch('/api/failed-messages');
+        const data = await response.json();
+        
+        if (!response.ok || !data.failed_messages) {
+            throw new Error('Failed to load failed messages');
+        }
+        
+        if (data.failed_messages.length === 0) {
+            showToast('No failed messages to resend', 'info');
+            return;
+        }
+        
+        const indices = data.failed_messages.map((_, index) => index);
+        
+        const resendResponse = await fetch('/api/resend-failed', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message_indices: indices,
+                rate_limit_delay: parseInt(delay)
+            })
+        });
+        
+        const resendData = await resendResponse.json();
+        
+        if (resendResponse.ok) {
+            showToast(`${resendData.resend_count} messages queued for resending with ${delay}ms delay`, 'success');
+            setTimeout(() => loadFailedMessages(), 2000); // Refresh after 2 seconds
+        } else {
+            throw new Error(resendData.error || 'Failed to resend messages');
+        }
+    } catch (error) {
+        console.error('Error resending all failed messages:', error);
+        showToast('Failed to resend messages: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
+}
+
+async function resendSubgroupFailedMessages(subgroupId) {
+    try {
+        if (!confirm('Are you sure you want to resend ALL failed messages for this sub-group?')) {
+            return;
+        }
+        
+        showLoading('Resending sub-group failed messages...');
+        const delay = document.getElementById('resendDelay').value || 3000;
+        
+        const response = await fetch(`/api/subgroups/${subgroupId}/resend-failed`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                rate_limit_delay: parseInt(delay)
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            showToast(`${data.resend_count} sub-group messages queued for resending with ${delay}ms delay`, 'success');
+            setTimeout(() => loadFailedMessages(), 2000); // Refresh after 2 seconds
+        } else {
+            throw new Error(data.error || 'Failed to resend sub-group messages');
+        }
+    } catch (error) {
+        console.error('Error resending sub-group messages:', error);
+        showToast('Failed to resend sub-group messages: ' + error.message, 'error');
+    } finally {
+        hideLoading();
+    }
 }
