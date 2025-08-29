@@ -223,4 +223,215 @@ echo "type,group_id,body,poll_options,image_url,send_at,sent,status,message_id,e
 pkill -f "node.*js" && sleep 2 && ./start-ui.sh
 ```
 
-Your complete WhatsApp scheduling system is now ready! 🎉
+## 🌐 Digital Ocean Deployment
+
+Deploy your WhatsApp Scheduler on Digital Ocean droplets for production use.
+
+### Prerequisites
+- Digital Ocean droplet (Ubuntu 20.04+ recommended)
+- Domain name (optional, for SSL)
+- Your WHAPI_TOKEN from https://whapi.cloud
+
+### Step 1: Create Digital Ocean Droplet
+1. **Create Droplet**: 
+   - Ubuntu 20.04 or 22.04 LTS
+   - Minimum: 1GB RAM, 1 vCPU
+   - Recommended: 2GB RAM, 2 vCPU
+2. **Access via SSH**: `ssh root@YOUR_DROPLET_IP`
+
+### Step 2: Initial Server Setup
+Run the production setup script on your droplet:
+```bash
+# Download and run the setup script
+curl -fsSL https://raw.githubusercontent.com/GoodEd/whatsapp-scheduler/main/setup-production.sh -o setup-production.sh
+chmod +x setup-production.sh
+./setup-production.sh
+```
+
+This script will:
+- Install Docker and Docker Compose
+- Configure firewall (allow ports 22, 3001)
+- Create systemd service for auto-restart
+- Set up log rotation and monitoring
+- Create necessary directories
+
+### Step 3: Deploy Your Application
+```bash
+# Navigate to application directory
+cd /opt/whatsapp-scheduler
+
+# Clone your repository
+git clone https://github.com/GoodEd/whatsapp-scheduler.git .
+
+# Create .env file with your token
+nano .env
+```
+
+Add your configuration to `.env`:
+```bash
+WHAPI_TOKEN=your_whapi_cloud_token_here
+CSV_PATH=./schedule.csv
+SUBGROUPS_PATH=./subgroups.csv
+SERVER_PORT=3001
+CONCURRENCY=15
+NODE_ENV=production
+```
+
+### Step 4: Deploy with Docker
+```bash
+# Run the deployment script
+./deploy.sh
+```
+
+The deployment script will:
+- Validate your .env configuration
+- Build Docker containers
+- Start all services
+- Perform health checks
+- Show deployment status
+
+### Step 5: Access Your Application
+Open your browser and navigate to:
+```
+http://YOUR_DROPLET_IP:3001
+```
+
+### Production Management Commands
+
+#### Service Management
+```bash
+# Check service status
+systemctl status whatsapp-scheduler
+
+# Start/stop/restart service
+sudo systemctl start whatsapp-scheduler
+sudo systemctl stop whatsapp-scheduler
+sudo systemctl restart whatsapp-scheduler
+
+# View service logs
+sudo journalctl -u whatsapp-scheduler -f
+```
+
+#### Container Management
+```bash
+# View running containers
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Restart specific service
+docker-compose restart whatsapp-scheduler
+docker-compose restart whatsapp-scheduler-worker
+
+# Update application (after git pull)
+docker-compose up -d --build
+```
+
+#### Monitoring Commands
+```bash
+# Run monitoring script
+./monitor.sh
+
+# Check system resources
+htop
+df -h
+free -m
+
+# View application logs
+tail -f logs/app.log
+tail -f logs/scheduler.log
+```
+
+#### Backup and Maintenance
+```bash
+# Backup data
+tar -czf backup-$(date +%Y%m%d).tar.gz data/ logs/ .env
+
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Clean up Docker
+docker system prune -a
+```
+
+### SSL Configuration (Optional)
+To secure your application with HTTPS:
+
+1. **Install Certbot**:
+```bash
+sudo apt install certbot nginx
+```
+
+2. **Configure Nginx** (create `/etc/nginx/sites-available/whatsapp-scheduler`):
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+    
+    location / {
+        proxy_pass http://localhost:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+3. **Get SSL Certificate**:
+```bash
+sudo ln -s /etc/nginx/sites-available/whatsapp-scheduler /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+sudo certbot --nginx -d your-domain.com
+```
+
+### Troubleshooting
+
+#### Common Issues
+```bash
+# Service won't start
+sudo journalctl -u whatsapp-scheduler --no-pager
+
+# Container health check failing
+docker-compose logs whatsapp-scheduler
+
+# Port 3001 already in use
+sudo lsof -ti:3001
+sudo kill -9 $(sudo lsof -ti:3001)
+
+# Out of disk space
+df -h
+docker system prune -a
+```
+
+#### Recovery Commands
+```bash
+# Complete system restart
+sudo systemctl stop whatsapp-scheduler
+docker-compose down
+docker system prune -f
+./deploy.sh
+
+# Restore from backup
+tar -xzf backup-YYYYMMDD.tar.gz
+./deploy.sh
+```
+
+### Performance Optimization
+
+For high-volume deployments:
+
+1. **Increase Resources**: Upgrade to larger droplet
+2. **Optimize Concurrency**: Adjust `CONCURRENCY` in `.env`
+3. **Database Migration**: Consider PostgreSQL for large datasets
+4. **Load Balancing**: Use multiple droplets with load balancer
+
+Your WhatsApp Scheduler is now deployed and running in production! 🚀
+
+## 📞 Support
+
+- **Issues**: Report at https://github.com/GoodEd/whatsapp-scheduler/issues
+- **Documentation**: Check this README for comprehensive guides
+- **API Reference**: Visit http://YOUR_IP:3001 for interactive API docs
+
+Your complete WhatsApp scheduling system is now ready for production use! 🎉
